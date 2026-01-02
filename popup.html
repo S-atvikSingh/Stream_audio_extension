@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: auto; /* Change from 450px to auto */
+      min-width: 300px;
+      height: 100vh; /* Make it take the full height of the panel */
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    h2 {
+      margin: 0 0 15px 0;
+      font-size: 20px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .section {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .config-section {
+      font-size: 13px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 13px;
+    }
+    
+    input[type="checkbox"] {
+      margin-right: 8px;
+    }
+    
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    
+    .gain-control {
+      margin-top: 10px;
+    }
+    
+    input[type="range"] {
+      width: 100%;
+      margin: 5px 0;
+    }
+    
+    .gain-value {
+      font-weight: bold;
+      color: #ffd700;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    
+    #startBtn {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    #startBtn:hover:not(:disabled) {
+      background: #45a049;
+      transform: translateY(-2px);
+    }
+    
+    #stopBtn {
+      background: #f44336;
+      color: white;
+    }
+    
+    #stopBtn:hover:not(:disabled) {
+      background: #da190b;
+      transform: translateY(-2px);
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    #status {
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+    
+    .status-ready {
+      background: rgba(76, 175, 80, 0.3);
+    }
+    
+    .status-connecting {
+      background: rgba(255, 193, 7, 0.3);
+    }
+    
+    .status-streaming {
+      background: rgba(33, 150, 243, 0.3);
+      animation: pulse 2s infinite;
+    }
+    
+    .status-error {
+      background: rgba(244, 67, 54, 0.3);
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    .transcription-container {
+      background: rgba(255,255,255,0.95);
+      color: #333;
+      border-radius: 10px;
+      padding: 15px;
+      max-height: 300px;
+      overflow-y: auto;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    
+    .transcription-container h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #667eea;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 5px;
+    }
+    
+    .transcription-entry {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 5px;
+      border-left: 3px solid #667eea;
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    
+    .transcription-time {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+    
+    .transcription-text {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #333;
+    }
+    
+    .no-transcription {
+      text-align: center;
+      color: #999;
+      padding: 30px 20px;
+      font-style: italic;
+    }
+    
+    .connection-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .connected {
+      background: #4CAF50;
+      box-shadow: 0 0 10px #4CAF50;
+    }
+    
+    .disconnected {
+      background: #f44336;
+    }
+    
+    .info-text {
+      font-size: 11px;
+      color: rgba(255,255,255,0.8);
+      margin-top: 5px;
+    }
+    
+    .scrollbar-custom::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .scrollbar-custom::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+    
+    .scrollbar-custom::-webkit-scrollbar-thumb {
+      background: #667eea;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎤 Live Tab Transcription</h2>
+  
+  <!-- Server Configuration -->
+  <div class="section config-section">
+    <label for="serverUrl">WebSocket Server:</label>
+    <input type="text" id="serverUrl" value="ws://localhost:8765" placeholder="ws://localhost:8765">
+    <div class="info-text">Make sure streaming_server.py is running</div>
+  </div>
+  
+  <!-- Voice Filtering Options -->
+  <div class="section">
+    <label class="checkbox-label">
+      <input type="checkbox" id="filterToggle">
+      <span>Enable Voice Filtering (Remove Your Voice)</span>
+    </label>
+    
+    <div id="gainControl" class="gain-control" style="display: none;">
+      <label style="font-size: 12px;">
+        Filter Strength: <span class="gain-value" id="gainValue">0.8</span>
+      </label>
+      <input type="range" id="gainSlider" min="0.3" max="1.5" step="0.1" value="0.8">
+      <div class="info-text">Lower = less filtering | Higher = more filtering</div>
+    </div>
+  </div>
+  
+  <!-- Status -->
+  <div id="status" class="status-ready">
+    <span class="connection-indicator disconnected" id="connectionIndicator"></span>
+    <span id="statusText">Ready to start</span>
+  </div>
+  
+  <!-- Control Buttons -->
+  <div class="section">
+    <button id="startBtn">Start Live Transcription</button>
+    <button id="stopBtn" disabled>Stop Transcription</button>
+  </div>
+  
+  <!-- Live Transcription Display -->
+  <div class="transcription-container scrollbar-custom">
+    <h3>Live Transcription</h3>
+    <div id="transcriptionContainer">
+      <div class="no-transcription">
+        Click "Start Live Transcription" to begin...
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Context Display -->
+  <div class="transcription-container scrollbar-custom" style="margin-top:12px;">
+    <h3>🧠 Context Assistant</h3>
+    <div id="llmContainer">
+      <div class="no-transcription">
+        Contextual insights will appear here...
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
