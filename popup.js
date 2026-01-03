@@ -9,6 +9,7 @@ const serverUrlInput = document.getElementById('serverUrl');
 const statusText = document.getElementById('statusText');
 const transcriptionContainer = document.getElementById('transcriptionContainer');
 const llmContainer = document.getElementById('llmContainer');
+const bigConfigSection = document.getElementById('bigConfigSection'); // Wrap your setup text in this ID
 
 // --- Initialization ---
 
@@ -37,6 +38,8 @@ startBtn.onclick = () => {
   stopBtn.disabled = false;
   statusText.textContent = "Status: Connecting to tab audio...";
   statusText.style.color = "#f39c12";
+  // UI Minimization
+  if (bigConfigSection) bigConfigSection.style.display = 'none';
 
   // Trigger the background script to start the Tab Capture flow
   chrome.runtime.sendMessage({
@@ -58,7 +61,9 @@ stopBtn.onclick = () => {
     target: 'offscreen-doc',
     type: 'STOP_AUDIO'
   });
-
+  // UI Minimization
+  if (bigConfigSection) bigConfigSection.style.display = 'block';
+  
   resetUI("Status: Stopped");
 };
 
@@ -80,19 +85,43 @@ chrome.runtime.onMessage.addListener((msg) => {
       }
     } 
 
-    // 2. Handle LLM Context (Filter out empty/useless values)
+    // 2. Handle LLM Context (Prepend history instead of replacing)
     else if (data.type === 'context_partial') {
       const llmContainer = document.getElementById('llmContainer');
+      
+      // Robustly extract the textValue from the nested JSON structure
       const textValue = data.json?.context || data.text || "";
 
-      // Only update if the text is actually meaningful
-      // You can add more specific "empty" strings to the array below
-      const uselessValues = ["", "none", "No relevant context extracted", "undefined", "null", "ChatCompletion(id=","audio_tokens=0"];
+      // Filter out "garbage" or empty results
+      const uselessValues = ["", "none", "No relevant context extracted", "undefined", "null"];
       
-      if (textValue && !uselessValues.includes(textValue.trim())) {
+      // Check if textValue starts with the ChatCompletion object string to catch errors
+      const isGarbage = uselessValues.includes(textValue.trim()) || textValue.includes("ChatCompletion(id=");
+
+      if (textValue && !isGarbage) {
         if (llmContainer) {
-          if (llmContainer.querySelector('.no-transcription')) llmContainer.innerHTML = '';
-          llmContainer.innerHTML = `<div class="transcription-text">${textValue.replace(/\n/g, '<br>')}</div>`;
+          // 1. Remove "No context" placeholder ONLY if it exists
+          const placeholder = llmContainer.querySelector('.no-transcription');
+          if (placeholder) {
+            llmContainer.innerHTML = ''; 
+          }
+
+          // 2. Create a unique wrapper for this specific update
+          const entry = document.createElement('div');
+          entry.className = 'llm-context-entry';
+          entry.style.borderBottom = "1px solid #ddd";
+          entry.style.padding = "10px 0";
+          entry.style.marginBottom = "10px";
+
+          // 3. Optional: Add a small timestamp to help distinguish entries
+          const time = new Date().toLocaleTimeString();
+          const timeSpan = `<small style="color: #888; display: block;">${time}</small>`;
+
+          // 4. Set content with line breaks preserved
+          entry.innerHTML = `${timeSpan}<div class="transcription-text">${textValue.replace(/\n/g, '<br>')}</div>`;
+
+          // 5. USE PREPEND: This pushes previous entries down instead of deleting them
+          llmContainer.prepend(entry);
         }
       }
     }
@@ -143,5 +172,37 @@ function updateLLMContext(text) {
   if (placeholder) placeholder.remove();
 
   // For LLM context, we usually want to replace the content with the latest summary
-  llmContainer.innerHTML = `<div class="transcription-text">${text.replace(/\n/g, '<br>')}</div>`;
+  //llmContainer.innerHTML = `<div class="transcription-text">${text.replace(/\n/g, '<br>')}</div>`;
+  // Trying to prepend the context so that previous context are also visible:
+  // 3. Create a unique wrapper for THIS specific insight
+  const entryDiv = document.createElement('div');
+  entryDiv.className = 'llm-context-item';
+  
+  // Style it so it looks like a distinct card in a feed
+  entryDiv.style.borderLeft = "4px solid #007bff";
+  entryDiv.style.backgroundColor = "#fcfcfc";
+  entryDiv.style.padding = "12px";
+  entryDiv.style.marginBottom = "15px";
+  entryDiv.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+  entryDiv.style.borderRadius = "4px";
+
+  // 4. Add a timestamp so you can see it's a new entry
+  const timeLabel = document.createElement('small');
+  timeLabel.style.color = "#888";
+  timeLabel.style.display = "block";
+  timeLabel.style.marginBottom = "5px";
+  timeLabel.textContent = new Date().toLocaleTimeString();
+
+  // 5. Create the content area (using innerHTML for Markdown/Tables)
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'context-body';
+  // Replace newlines with breaks for readability
+  contentDiv.innerHTML = text.replace(/\n/g, '<br>');
+
+  // 6. Assemble and PREPEND
+  entryDiv.appendChild(timeLabel);
+  entryDiv.appendChild(contentDiv);
+  
+  // This pushes previous entries down, making them scrollable
+  llmContainer.prepend(entryDiv);
 }

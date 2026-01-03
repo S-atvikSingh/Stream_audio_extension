@@ -121,284 +121,163 @@ async def handle(ws):
                     "timestamp": datetime.now().isoformat()
                 }))
                 asyncio.create_task(send_transcripts_to_llm_and_print(text, websocket=ws))
-
+                
 async def send_transcripts_to_llm_and_print(
     transcripts,
     websocket=None,
     model: str | None = None,
-    max_tokens: int = 250,
+    max_tokens: int = 600,
     temperature: float = 0.0
 ) -> str | None:
     """
-    Send recent transcript slices to an LLM and print the 'context' field returned.
-
-    Args:
-      transcripts: list[str] or str - rolling transcript slices (most recent first or in time order).
-      websocket: optional websocket object; if provided, the function will send back
-                 a message: {"type":"context_partial","json": {...}} where the JSON contains
-                 the LLM response and metadata.
-      model: optional model name (default from env MODEL or 'gpt-4o-mini').
-      max_tokens: response token limit for LLM
-      temperature: model temperature (0.0 recommended for deterministic JSON)
-
-    Returns:
-      The extracted context string, or None if extraction failed.
-
-    Behavior:
-      - Builds the prompt you specified exactly (asks for JSON with single field "context").
-      - Uses the new OpenAI client if available and OPENAI_API_KEY environment variable is set.
-      - If the model returns JSON with "context", that is printed and optionally sent to websocket.
-      - If the model returns something else or parsing fails, best-effort extraction is attempted.
+    Autonomous Technical Strategist: Detects intent, fills technical gaps,
+    and provides generative blueprints instead of basic definitions.
     """
 
-    # --- normalize transcripts input into a single block ---
+    # 1. Normalize and validate input
     if not transcripts:
-        print("send_transcripts_to_llm_and_print: no transcripts provided")
         return None
     if isinstance(transcripts, (list, tuple)):
-        # join with a newline and keep order as given
-        combined = "\n".join(str(t).strip() for t in transcripts if t and str(t).strip())
+        combined = "\n".join(str(t).strip() for t in transcripts if t)
     else:
         combined = str(transcripts).strip()
 
     if not combined:
-        print("send_transcripts_to_llm_and_print: combined transcripts empty")
         return None
 
-    # Prepare prompt exactly as user specified
+    # 2. Enhanced Autonomous Prompt
     prompt = f"""
-You are a highly-informed **Domain Expert** and **Knowledge Enhancement Engine**.
-Your task is to analyze rolling slices of a video/meeting transcription, fuse them into meaningful sentences, and then provide relevant, in-depth **contextual knowledge** to enhance the user's understanding of the conversation or video content.
+You are a highly-informed **Domain Expert Architect** and **Knowledge Enhancement Engine**.
+Your task is to analyze rolling slices of a transcript, fuse them, and provide generative technical insights.
 
-### Task Breakdown:
-1.  **Sentence Fusion:** Combine the incoming transcript slices into one or more complete, meaningful sentences.
-2.  **Sentence Priority:** Give the last sentence higher priority and try to complete the next steps accordigly
-3.  **Knowledge Extraction:** Identify any **buzzwords, technical terms, concepts, interview questions, or key discussion points** within the highest priority sentence. 
-    * Use the fused sentence(s) as augmented context to extract the most relevent knowledge from highest priority sentence. 
-    * If no knowledge can be extracted then generate sample keywords based on fused sentence which can be used to continue the converstation.
-4.  **Context Generation:** For the identified points, generate concise, relevant, and supportive knowledge.
-    * **Goal:** The generated text should **explain** a term, **elaborate** on a concept, or **provide a similar/related example** that deepens the user's current understanding for the last sentence. The output is **not** a summary or a direct answer to a question in the transcript. Ideally the context should help continue the conversation or enhance the understanding of the conversation.
-    * **Example (Interview):** If the transcript mentions "What's your experience with microservices?", the context should explain what microservices are, or list the core benefits/drawbacks.
-    * **Example (Tech Video):** If the transcript mentions "quantum computing's entanglement," the context should concisely define entanglement in a computing context.
+### PHASE 1: TRANSCRIPT ANALYSIS
+1. **Sentence Fusion:** Combine transcript slices into complete, meaningful sentences. Since the transcriptions might be for non native users 
+check and correct the words as needed to have a meaningful sentence. 
+for example: 
+Transcript: "Understanding underlying concepts helped me use tools like Catchy B.T. and Google B.R."
+Meaning: "Understanding underlying concepts helped me use tools like ChatGPT and Google Bard"
+that is use the phonetic similarity to find meaniingful sentence rather than the normal typing similarity.
 
-Return **ONLY one JSON object** (no commentary or surrounding text) with exactly one field named **"context"**.
+2. **Sentence Priority:** Give the LAST sentence the highest priority. Extract keywords and intent primarily from the most recent speech.
 
-Example of desired output:
-{{"context": "Microservices is an architectural style where an application is structured as a collection of smaller, independent services, communicating via APIs."}}
+3. **Archetype Detection:** Automatically detect if the setting is a **Technical Interview**, **Product/Tech Review**, **Educational Lecture** or **Generic conversation/meeting**.
 
-If no clear contextual information or key concept/term is found in the fused transcript, set the value of "context" to the string **"No relevant context extracted"**.
+### PHASE 2: CONTEXT GENERATION (THE STRATEGIST)
+Based on the detected setting, generate the "context" field using the most appropriate of the following rules. 
+If a specific rule is not applicable then do not hallucinate or fake the data. If multiple settings are applicable then use the most
+suitable rules for the current conversation to generate the context and arrange the context in a logical format.
 
-Example of 'No context' output:
-{{"context": "No relevant context extracted"}}
+- **IF TECHNICAL INTERVIEW:**
+  - Provide a "Professional Opening" to help the user start their answer.
+  - Provide 3-4 "Mastery Keywords" (architectural patterns or edge cases).
+  - Provide a [STAR] or [System Design] generic template to fill with experience.
+  
+- **IF PRODUCT/TECH REVIEW:**
+  - Provide a "Comparative Analysis" (how this feature compares to industry standards or old versions).
+  - Provide a concise lists of Pros/Cons.
+
+- **IF LECTURES/EDUCATIONAL:**
+  - Provide "Memory Refresh" that is prerequisite logic/knowledge in concise format and/or valid Markdown links to access such knowledge.
+    i.e. it should be of the format <a href="www.example.com"> example </a>
+  - Provide valid Markdown links to official docs (MDN, AWS, etc.) for clickable deep-dives.
+  - All links should be valid Markdown links in clickable format. i.e. it should be of the format <a href="www.example.com"> example </a>
+so that the link can be directly clicked by the user so as to open the link in the background while the meeting/video is still ongoing.
+
+
+If the conversation can be several of the above categories then mix and match the context provided as appropriate. 
+You may use the below given options to enhnace the context
+- If an keyword, API or tool is mentioned, do not just define it. Provide a generic boilerplate construction (e.g., a sample REST payload or code snippet).
+- Explain one specific way the discussed logic fails under 10x load or suggest possible optimization.
+- Identify what the speaker *didn't* mention but should have (e.g., indexing, security, or scaling).
+
+### PHASE 3: 
+- Remember that the context provided will change as the conversation continues so the context should be consice and helpful.
+- The context should not repeat information already explained in either the conversation or previous context.
+- The context should not include information like context generation strategies used by us. It should only provide information immediately
+helpful to the user.
+- If the context uses several different points the the points should be seperated into different paragraphs to make it easy to 
+read when displayed in HTML div text. 
+- Assume the context will be displayed as text in an HTML div, format the content accordingly.
+
+### CONSTRAINTS:
+- Return ONLY one JSON object with exactly one field: "context".
+- If no knowledge can be extracted (small talk), return {{"context": "No relevant context extracted"}}.
+- The links mentioned should be real links which can be accessed not fake links or placeholders.
+- All links should be valid Markdown links in clickable format. i.e. it should be of the format <a href="www.example.com"> example </a>
+so that the link can be directly clicked by the user so as to open the link in the background while the meeting/video is still ongoing.
+- The result context should be human readable and not include things like the settings, resources etc used for context generation.
 
 TRANSCRIPT:
-\"\"\"{combined}
-\"\"\"
+\"\"\"{combined}\"\"\"
 """
 
-    # Model selection
     model = model or os.environ.get("MODEL") or "gpt-4o-mini"
 
-    # Attempt to import and use new OpenAI client
+    # 3. Setup OpenAI Client
     try:
-        import openai
         from openai import OpenAI
-    except Exception:
-        OpenAI = None
-        openai = None
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            print("[LLM ERROR]: OPENAI_API_KEY not found in environment.")
+            return None
+        client = OpenAI()
+    except Exception as e:
+        print(f"[LLM ERROR]: {e}")
+        return None
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    # If OpenAI not available or API key missing, produce a tiny local fallback summary
-    if OpenAI is None or not api_key:
-        # Local fallback: naive combine into single sentence + keywords
-        sentences = [s.strip() for s in combined.splitlines() if s.strip()]
-        combined_sentence = " ".join(sentences[-3:]) if sentences else ""
-        context_fallback = "No relevant context extracted"
-        out = {"context": context_fallback, "timestamp": datetime.now().isoformat(), "source_count": len(sentences)}
-        print("[LLM FALLBACK CONTEXT]:", json.dumps(out, indent=2, ensure_ascii=False))
-        # send back to websocket if provided
-        if websocket:
-            try:
-                await websocket.send(json.dumps({"type": "context_partial", "json": out}))
-            except Exception:
-                pass
-        return out["context"]
-
-    # Build messages for chat model
     messages = [
-        {"role": "system", "content": "You are a concise meeting assistant. Output exactly one JSON object with one key: context."},
+        {"role": "system", "content": "You are a Knowledge Enhancement Engine. You receive trancript of conversation and then provide"
+        " Output of exactly one JSON object with one key: context."},
         {"role": "user", "content": prompt}
     ]
 
-    # Create client and call LLM in a thread to avoid blocking the event loop
     try:
-        client = OpenAI()
-    except Exception as e:
-        print("send_transcripts_to_llm_and_print: Failed to instantiate OpenAI client:", e)
-        traceback.print_exc()
-        return None
-
-    # network call selector (wrapped in to_thread)
-    def _call_llm():
-        try:
-            return client.chat.completions.create(
+        # 4. Threaded API call to prevent audio processing lag
+        resp = await asyncio.to_thread(
+            lambda: client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-        except Exception as e_inner:
-            # bubble up error
-            raise
+        )
+        
+        # 5. Strict Extraction to prevent 'garbage' metadata results
+        raw_text = resp.choices[0].message.content.strip()
 
-    try:
-        resp = await asyncio.to_thread(_call_llm)
+        # Handle Markdown code blocks if LLM includes them
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```")[1].replace("json", "").strip()
+
+        # Parse JSON and extract context
+        try:
+            parsed = json.loads(raw_text)
+            context_val = parsed.get("context", raw_text)
+        except json.JSONDecodeError:
+            context_val = raw_text
+
     except Exception as e:
-        print("send_transcripts_to_llm_and_print: OpenAI API call failed:", e)
-        traceback.print_exc()
+        print(f"send_transcripts_to_llm_and_print failed: {e}")
         return None
 
-    # Robust extraction of text content (handles different SDK shapes)
-    text_str = ""
-    try:
-        # Try common shapes (resp.choices[0].message.content)
-        # Many SDKs produce an object where choices[0].message.content is a list or a string
-        ch = None
-        try:
-            # attribute-style
-            ch = resp.choices[0]
-        except Exception:
-            try:
-                ch = resp["choices"][0] if isinstance(resp, dict) else None
-            except Exception:
-                ch = None
-
-        if ch is not None:
-            # try message -> content (list or str)
-            msg = getattr(ch, "message", None) if hasattr(ch, "message") else (ch.get("message") if isinstance(ch, dict) else None)
-            if isinstance(msg, dict) and "content" in msg:
-                cont = msg["content"]
-                if isinstance(cont, (list, tuple)) and cont:
-                    first = cont[0]
-                    if isinstance(first, dict) and "text" in first:
-                        text_str = first["text"]
-                    elif isinstance(first, str):
-                        text_str = first
-                elif isinstance(cont, str):
-                    text_str = cont
-            # fallback to other keys on ch
-            if not text_str:
-                for key in ("text", "content", "delta"):
-                    if hasattr(ch, key):
-                        val = getattr(ch, key)
-                        if isinstance(val, str) and val.strip():
-                            text_str = val.strip()
-                            break
-                    elif isinstance(ch, dict) and key in ch and isinstance(ch[key], str) and ch[key].strip():
-                        text_str = ch[key].strip()
-                        break
-
-        # Ultimate fallback: stringify resp
-        if not text_str:
-            try:
-                text_str = str(resp)
-            except Exception:
-                text_str = ""
-    except Exception:
-        text_str = str(resp)
-
-    # strip code fences if present
-    if text_str.startswith("```") and "```" in text_str[3:]:
-        parts = text_str.split("```")
-        if len(parts) >= 2:
-            text_str = parts[1].strip()
-
-    # Now try to parse JSON exactly as we asked (one object with "context")
-    context_val = None
-    try:
-        parsed = json.loads(text_str)
-        if isinstance(parsed, dict):
-            # Prefer "context" field
-            if "context" in parsed:
-                context_val = parsed["context"]
-            # if model returned "command" due to earlier examples, accept it
-            elif "command" in parsed:
-                context_val = parsed["command"]
-            else:
-                # If some other single key exists, take its value as string
-                if len(parsed) == 1:
-                    context_val = list(parsed.values())[0]
-                else:
-                    # convert entire dict to string (best-effort)
-                    context_val = json.dumps(parsed, ensure_ascii=False)
-    except Exception:
-        # not pure JSON; try to find JSON substring within text
-        try:
-            fb = text_str.find("{")
-            lb = text_str.rfind("}")
-            if fb != -1 and lb != -1 and lb > fb:
-                candidate = text_str[fb:lb+1]
-                parsed2 = json.loads(candidate)
-                if isinstance(parsed2, dict):
-                    if "context" in parsed2:
-                        context_val = parsed2["context"]
-                    elif "command" in parsed2:
-                        context_val = parsed2["command"]
-                    elif len(parsed2) == 1:
-                        context_val = list(parsed2.values())[0]
-                    else:
-                        context_val = json.dumps(parsed2, ensure_ascii=False)
-        except Exception:
-            pass
-
-    # If still nothing, use fallback: choose first non-empty line from text_str
-    if context_val is None:
-        # Extract meaningful sentence from the LLM text if possible
-        lines = [ln.strip() for ln in text_str.splitlines() if ln.strip()]
-        if lines:
-            # prefer shorter lines that look like a sentence
-            lines_sorted = sorted(lines, key=lambda s: (len(s), -len(s.split())))
-            context_val = lines_sorted[0]
-        else:
-            context_val = None
-
-    if context_val is None:
-        print("send_transcripts_to_llm_and_print: failed to extract context. Raw LLM text:")
-        print(text_str[:4000])
-        # optionally send error to websocket
-        if websocket:
-            try:
-                await websocket.send(json.dumps({"type": "context_partial_error", "raw": "No relevant context extracted"}))
-            except Exception:
-                pass
-        return None
-
-    # normalize to string and print
-    if isinstance(context_val, (dict, list)):
-        context_out = json.dumps(context_val, ensure_ascii=False)
-    else:
-        context_out = str(context_val).strip()
-
+    # 6. Final Data Assembly for UI
     out_json = {
-        "context": context_out,
+        "context": str(context_val),
         "model": model,
         "generated_at": datetime.now().isoformat(),
         "source_len": len(combined),
     }
 
-    # print to server console (user requested print)
     print("\n[LLM CONTEXT]:")
     print(json.dumps(out_json, indent=2, ensure_ascii=False))
 
-    # optionally send to websocket
     if websocket:
         try:
             await websocket.send(json.dumps({"type": "context_partial", "json": out_json}))
-        except Exception as e:
-            print("send_transcripts_to_llm_and_print: failed to send context to websocket:", e)
+        except Exception:
+            pass
 
-    return context_out
-
+    return out_json["context"]
 
 async def main():
     print("Started")

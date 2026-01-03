@@ -3,7 +3,7 @@ chrome.action.onClicked.addListener(() => {
     url: 'popup.html',
     type: 'popup',
     width: 450,
-    height: 600
+    height: 700
   });
 });
 
@@ -16,28 +16,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 async function handleStart(serverUrl) {
-  // 1. Find the tab that is actually playing audio (the lecture/video)
-  // We exclude the popup window by checking for tabs in other windows
-  const tabs = await chrome.tabs.query({ audible: true });
-  const targetTab = tabs.length > 0 ? tabs[0] : (await chrome.tabs.query({ currentWindow: false, active: true }))[0];
+  // 1. Check if offscreen doc is already open
+  const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+  const offscreenExists = contexts.length > 0;
 
-  if (!targetTab) {
-    console.error("No target tab found to capture.");
+  // 2. If it exists, we don't need a new streamId; just tell it to RE-INITIALIZE
+  if (offscreenExists) {
+    chrome.runtime.sendMessage({
+      target: 'offscreen-doc',
+      type: 'INITIALIZE_AUDIO',
+      serverUrl: serverUrl
+      // streamId is omitted because offscreen.js already has currentStream
+    });
     return;
   }
 
-  // 2. Setup Offscreen
+  // 3. If it doesn't exist, do the full first-time setup
+  const tabs = await chrome.tabs.query({ audible: true });
+  const targetTab = tabs.length > 0 ? tabs[0] : (await chrome.tabs.query({ currentWindow: false, active: true }))[0];
+
+  if (!targetTab) return;
+
   await setupOffscreen();
 
-  // 3. Capture the stream ID for that specific Tab
-  // This avoids the 'activeTab' requirement because we have 'tabs' permission
   chrome.tabCapture.getMediaStreamId({ targetTabId: targetTab.id }, (streamId) => {
-    if (chrome.runtime.lastError) {
-      console.error("Capture Error:", chrome.runtime.lastError.message);
-      return;
-    }
-
-    // 4. Send to Offscreen
     chrome.runtime.sendMessage({
       target: 'offscreen-doc',
       type: 'INITIALIZE_AUDIO',

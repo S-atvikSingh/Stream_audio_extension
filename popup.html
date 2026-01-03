@@ -239,30 +239,31 @@
 </head>
 <body>
   <h2>🎤 Live Tab Transcription</h2>
-  
-  <!-- Server Configuration -->
-  <div class="section config-section">
-    <label for="serverUrl">WebSocket Server:</label>
-    <input type="text" id="serverUrl" value="ws://localhost:8765" placeholder="ws://localhost:8765">
-    <div class="info-text">Make sure streaming_server.py is running</div>
-  </div>
-  
-  <!-- Voice Filtering Options -->
-  <div class="section">
-    <label class="checkbox-label">
-      <input type="checkbox" id="filterToggle">
-      <span>Enable Voice Filtering (Remove Your Voice)</span>
-    </label>
+  <div id="bigConfigSection">
+    <!-- Server Configuration -->
+    <div class="section config-section">
+      <label for="serverUrl">WebSocket Server:</label>
+      <input type="text" id="serverUrl" value="ws://localhost:8765" placeholder="ws://localhost:8765">
+      <div class="info-text">Make sure streaming_server.py is running</div>
+    </div>
     
-    <div id="gainControl" class="gain-control" style="display: none;">
-      <label style="font-size: 12px;">
-        Filter Strength: <span class="gain-value" id="gainValue">0.8</span>
+    <!-- Voice Filtering Options -->
+    <div class="section">
+      <label class="checkbox-label">
+        <input type="checkbox" id="filterToggle">
+        <span>Enable Voice Filtering (Remove Your Voice)</span>
       </label>
-      <input type="range" id="gainSlider" min="0.3" max="1.5" step="0.1" value="0.8">
-      <div class="info-text">Lower = less filtering | Higher = more filtering</div>
+      
+      <div id="gainControl" class="gain-control" style="display: none;">
+        <label style="font-size: 12px;">
+          Filter Strength: <span class="gain-value" id="gainValue">0.8</span>
+        </label>
+        <input type="range" id="gainSlider" min="0.3" max="1.5" step="0.1" value="0.8">
+        <div class="info-text">Lower = less filtering | Higher = more filtering</div>
+      </div>
     </div>
   </div>
-  
+
   <!-- Status -->
   <div id="status" class="status-ready">
     <span class="connection-indicator disconnected" id="connectionIndicator"></span>
