@@ -4,11 +4,11 @@ Reliable sentence-level transcription for browser tab audio
 No VAD, no silence detection, no partial hallucinations
 """
 
-import asyncio, websockets, json, base64, os, tempfile, wave, time,traceback
+import asyncio, websockets, json, base64, os, tempfile, wave, time, traceback, librosa, sherpa_onnx
 import soundfile as sf
-import sherpa_onnx
 from datetime import datetime
 from pathlib import Path
+import numpy as np
 
 # ================= CONFIG =================
 MODEL_DIR = r"C:\sherpa_models\sherpa-onnx-whisper-tiny.en"
@@ -64,30 +64,49 @@ def decode_pcm(pcm):
 async def handle(ws):
     buffer = bytearray()
     last_decode_time = time.time()
+    # Default fallback if metadata is missed
+    input_sample_rate = 44100 
 
     print("🟢 Client connected")
 
     async for msg in ws:
         data = json.loads(msg)
 
-        # NEW: Catch logs from the extension
-        if data.get("type") == "CRASH_LOG":
-            print(f"\n[EXTENSION CRASH DETECTED]: {data['message']}")
-            print(f"Location: {data['source']} Line: {data['lineno']}")
-            print(f"Stack: {data.get('error')}\n")
+        if data.get("type") == "metadata":
+            input_sample_rate = data.get("sampleRate", 44100)
+            print(f"📡 Hardware Sample Rate detected: {input_sample_rate}Hz")
             continue
 
         if data.get("type") != "audio":
             continue
 
-        pcm = base64.b64decode(data["data"])
-        buffer.extend(pcm)
+        # 1. Decode base64 back to raw bytes
+        raw_bytes = base64.b64decode(data["data"])
+        
+        # 2. Interpret bytes as 32-bit floats (matching JS Float32Array)
+        audio_floats = np.frombuffer(raw_bytes, dtype=np.float32)
+        
+        # 3. Resample from hardware rate to Whisper's 16000Hz
+        if input_sample_rate != SAMPLE_RATE:
+            audio_resampled = librosa.resample(
+                audio_floats, 
+                orig_sr=input_sample_rate, 
+                target_sr=SAMPLE_RATE
+            )
+        else:
+            audio_resampled = audio_floats
+
+        # 4. Perform float-to-int16 conversion on the server
+        audio_int16 = (np.clip(audio_resampled, -1.0, 1.0) * 32767).astype(np.int16)
+        
+        # 5. Extend buffer with the processed bytes
+        buffer.extend(audio_int16.tobytes())
 
         now = time.time()
         duration = len(buffer) / (SAMPLE_RATE * SAMPLE_WIDTH)
 
         if now - last_decode_time >= DECODE_INTERVAL_SECONDS and duration >= 2.0:
-            text = decode_pcm(buffer)
+            text = decode_pcm(buffer) # Existing whisper decode logic
 
             # keep overlap
             keep = int(OVERLAP_SECONDS * SAMPLE_RATE * SAMPLE_WIDTH)
@@ -101,9 +120,7 @@ async def handle(ws):
                     "text": text,
                     "timestamp": datetime.now().isoformat()
                 }))
-                # call LLM in background (non-blocking)
                 asyncio.create_task(send_transcripts_to_llm_and_print(text, websocket=ws))
-
 
 async def send_transcripts_to_llm_and_print(
     transcripts,
