@@ -274,7 +274,15 @@
   <div class="section">
     <button id="startBtn">Start Live Transcription</button>
     <button id="stopBtn" disabled>Stop Transcription</button>
+    <button id="exportBtn">Export Session</button>
+    <div id="scrollControl" style="margin: 10px 0; padding: 8px; background: #f1f1f1; border-radius: 5px;">
+      <label style="cursor: pointer; font-size: 13px; color: #333;">
+        <input type="checkbox" id="autoScrollToggle" checked> 
+        <strong>Auto-scroll to latest updates</strong>
+      </label>
+    </div>
   </div>
+
 
   <!-- Live Context Display -->
   <div class="transcription-container scrollbar-custom" style="margin-top:12px;">

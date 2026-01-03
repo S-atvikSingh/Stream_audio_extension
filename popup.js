@@ -67,61 +67,121 @@ stopBtn.onclick = () => {
   resetUI("Status: Stopped");
 };
 
+document.getElementById('exportBtn').onclick = () => {
+  const transcriptHTML = transcriptionContainer.innerHTML;
+  const contextHTML = llmContainer.innerHTML;
+
+  // Create a full HTML document string for better readability and clickable links
+  const fullHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Session Export - ${new Date().toLocaleString()}</title>
+      <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; color: #333; }
+        h1 { border-bottom: 2px solid #007bff; color: #007bff; }
+        .section { margin-bottom: 30px; border: 1px solid #eee; padding: 15px; border-radius: 8px; }
+        .entry { margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #fafafa; }
+        .timestamp { color: #888; font-size: 0.8em; }
+        pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+      </style>
+    </head>
+    <body>
+      <h1>Session Enhancement Report</h1>
+      <div class="section">
+        <h2>AI Context & Blueprints</h2>
+        ${contextHTML}
+      </div>
+      <div class="section">
+        <h2>Transcripts</h2>
+        ${transcriptHTML}
+      </div>
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob([fullHTML], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `session_report_${new Date().getTime()}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 // --- Message Listener ---
+
+// --- Integrated Message Listener with Chronological Append & Auto-Scroll ---
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'UI_UPDATE') {
     const data = msg.payload;
+    const isAutoScrollEnabled = document.getElementById('autoScrollToggle').checked;
     
-    // 1. Handle Transcription (Always display)
+    // 1. Handle Transcription (Append to Bottom)
     if (data.type === 'transcription') {
       const container = document.getElementById('transcriptionContainer');
       if (container) {
         if (container.querySelector('.no-transcription')) container.innerHTML = '';
+        
         const div = document.createElement('div');
         div.className = 'transcription-entry';
+        div.style.borderTop = "1px solid #eee";
+        div.style.padding = "5px 0";
         div.innerHTML = `<div class="transcription-text">${data.text}</div>`;
-        container.prepend(div);
+        
+        // Append ensures the Export file reads from Start to End
+        container.append(div);
+        
+        if (isAutoScrollEnabled) {
+          div.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       }
     } 
 
-    // 2. Handle LLM Context (Prepend history instead of replacing)
+    // 2. Handle LLM Context (Append to Bottom)
     else if (data.type === 'context_partial') {
       const llmContainer = document.getElementById('llmContainer');
-      
-      // Robustly extract the textValue from the nested JSON structure
       const textValue = data.json?.context || data.text || "";
+      // DEFENSIVE PARSING: If the LLM sent a string that is actually ANOTHER JSON object
+      try {
+          const nested = JSON.parse(textValue);
+          if (nested.context) textValue = nested.context;
+      } catch (e) {
+          // It's just a normal string, proceed
+      }
 
-      // Filter out "garbage" or empty results
       const uselessValues = ["", "none", "No relevant context extracted", "undefined", "null"];
-      
-      // Check if textValue starts with the ChatCompletion object string to catch errors
       const isGarbage = uselessValues.includes(textValue.trim()) || textValue.includes("ChatCompletion(id=");
 
       if (textValue && !isGarbage) {
         if (llmContainer) {
-          // 1. Remove "No context" placeholder ONLY if it exists
           const placeholder = llmContainer.querySelector('.no-transcription');
-          if (placeholder) {
-            llmContainer.innerHTML = ''; 
-          }
+          if (placeholder) llmContainer.innerHTML = ''; 
 
-          // 2. Create a unique wrapper for this specific update
           const entry = document.createElement('div');
           entry.className = 'llm-context-entry';
-          entry.style.borderBottom = "1px solid #ddd";
+          entry.style.borderTop = "2px solid #007bff"; // Visual break for new blocks
           entry.style.padding = "10px 0";
+          entry.style.marginTop = "15px";
           entry.style.marginBottom = "10px";
 
-          // 3. Optional: Add a small timestamp to help distinguish entries
+          // Convert Markdown links to HTML <a> tags
+          const formattedText = textValue
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+            .replace(/\n/g, '<br>');
+
           const time = new Date().toLocaleTimeString();
-          const timeSpan = `<small style="color: #888; display: block;">${time}</small>`;
+          entry.innerHTML = `
+            <small style="color: #007bff; font-weight: bold;">[AI INSIGHT - ${time}]</small>
+            <div class="transcription-text" style="margin-top: 5px;">${formattedText}</div>
+          `;
 
-          // 4. Set content with line breaks preserved
-          entry.innerHTML = `${timeSpan}<div class="transcription-text">${textValue.replace(/\n/g, '<br>')}</div>`;
+          // Append to keep the chronological flow for Export
+          llmContainer.append(entry);
 
-          // 5. USE PREPEND: This pushes previous entries down instead of deleting them
-          llmContainer.prepend(entry);
+          if (isAutoScrollEnabled) {
+            entry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         }
       }
     }

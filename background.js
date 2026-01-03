@@ -32,8 +32,18 @@ async function handleStart(serverUrl) {
   }
 
   // 3. If it doesn't exist, do the full first-time setup
-  const tabs = await chrome.tabs.query({ audible: true });
-  const targetTab = tabs.length > 0 ? tabs[0] : (await chrome.tabs.query({ currentWindow: false, active: true }))[0];
+  // Prioritize the active tab in the current window if it is audible
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const audibleTabs = await chrome.tabs.query({ audible: true });
+  
+  const targetTab = (activeTab && activeTab.audible) ? activeTab : (audibleTabs[0] || activeTab);
+  
+  if (!targetTab) {
+    console.error("No active or audible tab found.");
+    return;
+  }
+  //const tabs = await chrome.tabs.query({ audible: true });
+  //const targetTab = tabs.length > 0 ? tabs[0] : (await chrome.tabs.query({ currentWindow: false, active: true }))[0];
 
   if (!targetTab) return;
 

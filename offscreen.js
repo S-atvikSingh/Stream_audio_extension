@@ -55,10 +55,18 @@ chrome.runtime.onMessage.addListener(async (msg) => {
       processor.onaudioprocess = (e) => {
         if (websocket?.readyState === WebSocket.OPEN) {
           const input = e.inputBuffer.getChannelData(0);
-          websocket.send(JSON.stringify({
-            type: 'audio',
-            data: btoa(String.fromCharCode(...new Uint8Array(input.buffer)))
-          }));
+          // Simple RMS (Root Mean Square) calculation for volume
+          let sum = 0;
+          for (let i = 0; i < input.length; i++) {
+            sum += input[i] * input[i];
+          }
+          const rms = Math.sqrt(sum / input.length);
+          if (rms>0.005){
+            websocket.send(JSON.stringify({
+                type: 'audio',
+                data: btoa(String.fromCharCode(...new Uint8Array(input.buffer)))
+            }));
+          }
         }
       };
 
