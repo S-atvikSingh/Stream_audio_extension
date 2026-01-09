@@ -6,7 +6,6 @@ let currentStream = null;
 
 chrome.runtime.onMessage.addListener(async (msg) => {
   if (msg.target !== 'offscreen-doc') return;
-
   if (msg.type === 'INITIALIZE_AUDIO') {
     try {
       // 1. Singleton Initialization: Only create the AudioContext and Stream ONCE
@@ -61,6 +60,7 @@ chrome.runtime.onMessage.addListener(async (msg) => {
             sum += input[i] * input[i];
           }
           const rms = Math.sqrt(sum / input.length);
+
           if (rms>0.005){
             websocket.send(JSON.stringify({
                 type: 'audio',

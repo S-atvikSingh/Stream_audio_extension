@@ -144,7 +144,9 @@ async def send_transcripts_to_llm_and_print(
 
     if not combined:
         return None
-
+    meetingType="Behavioral Interview"
+    knownInfo="Python"
+    knownProjects="Project using API and Kafka"
     # 2. Enhanced Autonomous Prompt
     prompt = f"""
 You are a highly-informed **Domain Expert Architect** and **Knowledge Enhancement Engine**.
@@ -159,18 +161,47 @@ Meaning: "Understanding underlying concepts helped me use tools like ChatGPT and
 that is use the phonetic similarity to find meaniingful sentence rather than the normal typing similarity.
 
 2. **Sentence Priority:** Give the LAST sentence the highest priority. Extract keywords and intent primarily from the most recent speech.
-
-3. **Archetype Detection:** Automatically detect if the setting is a **Technical Interview**, **Product/Tech Review**, **Educational Lecture** or **Generic conversation/meeting**.
+"""
+    #Meeting type declation
+    if meetingType=="unknown":
+        prompt+=f"""
+3. **Archetype Detection:** Automatically detect if the setting is a **Technical Interview**, **Product/Tech Review**, **Educational Lecture** or **Generic conversation/meeting**."""
+    else:
+        prompt+=f"""3. Since the setting type is confirmed to be """+meetingType+f""" then perfrom all the next steps based on this assumption"""
+    #knownInfo declaration
+    if len(knownInfo)>0:
+        prompt+=f"""
+4. **Known Info:** You can assume that the user already knows the following skills information, thus all context generation should be done with assumption.
+for example: A person skilled in python and react facing a technical interview question should be given prompts in Python and react itself rather than C++ or Java.
+Similarly an civil engineer might not need to know the definition of a load bearing column due to having prior professional information but might need help with API definition.
+Thus all context generated should have their complexity decided by the knowledge reserve already avialable to the user. The known skills &information are as follows """+knownInfo
+        if len(knownProjects)>0:
+            prompt+=f""" Additionally remember to include the following projects into the generated context when applicable. 
+            For example in system design and behavioral interviews. 
+            """+ knownProjects
+    
+    prompt +=f"""
 
 ### PHASE 2: CONTEXT GENERATION (THE STRATEGIST)
 Based on the detected setting, generate the "context" field using the most appropriate of the following rules. 
 If a specific rule is not applicable then do not hallucinate or fake the data. If multiple settings are applicable then use the most
 suitable rules for the current conversation to generate the context and arrange the context in a logical format.
+Try to avoid repeating a context which has already been generated for this conversation.  
 
 - **IF TECHNICAL INTERVIEW:**
   - Provide a "Professional Opening" to help the user start their answer.
   - Provide 3-4 "Mastery Keywords" (architectural patterns or edge cases).
   - Provide a [STAR] or [System Design] generic template to fill with experience.
+  - If confirmed to be a DSA type interview then ignore real-world analogies. Focus on DSA to solve the problem.
+  - Avoid repeating "STAR method" if already mentioned. 
+  
+- **IF BEHAVIORAL INTERVIEW:**
+  - If the user drifts into irrelevant stories, provide a warning.
+  - If user has provided projects completed by themselves then try to answer interview questions with those projects when possible.
+  - Differentiate between 'how to act' and 'what to say'. Always prioritize 'what to say'.
+  - Provide specific feedback on the content of the user's current answer which will help the user refine their answer.
+  - Act as a critical coach. If the interviewee goes off-topic or uses a flawed logic (e.g., brute force for a large scale problem), 
+  gently provide a 'Hint' or 'Correction' in the context box to steer them back.
   
 - **IF PRODUCT/TECH REVIEW:**
   - Provide a "Comparative Analysis" (how this feature compares to industry standards or old versions).
@@ -206,6 +237,7 @@ read when displayed in HTML div text.
 - All links should be valid Markdown links in clickable format. i.e. it should be of the format <a href="www.example.com"> example </a>
 so that the link can be directly clicked by the user so as to open the link in the background while the meeting/video is still ongoing.
 - The result context should be human readable and not include things like the settings, resources etc used for context generation.
+- Compare previously provided context to prevent repeat of same advice when possible.
 
 TRANSCRIPT:
 \"\"\"{combined}\"\"\"

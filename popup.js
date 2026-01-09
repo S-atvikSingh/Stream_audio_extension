@@ -10,7 +10,7 @@ const statusText = document.getElementById('statusText');
 const transcriptionContainer = document.getElementById('transcriptionContainer');
 const llmContainer = document.getElementById('llmContainer');
 const bigConfigSection = document.getElementById('bigConfigSection'); // Wrap your setup text in this ID
-
+let audioDataBuffer = new Array(50).fill(0);
 // --- Initialization ---
 
 // Optional: Load the last used server URL from storage
@@ -185,6 +185,7 @@ chrome.runtime.onMessage.addListener((msg) => {
         }
       }
     }
+    
   }
 });
 
